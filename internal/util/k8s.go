@@ -271,6 +271,7 @@ func getChaincodeJobSpec(
 	namespace, serviceAccount, objectName, peerID string,
 	chaincodeData *ChaincodeJSON,
 	chaincodeEnvVars []apiv1.EnvVar,
+	chaincodeResources apiv1.ResourceRequirements,
 ) (*batchv1.Job, error) {
 	chaincodeImage := imageData.Name + "@" + imageData.Digest
 
@@ -347,6 +348,7 @@ func getChaincodeJobSpec(
 									Value: chaincodeData.MspID,
 								},
 							}, chaincodeEnvVars...),
+							Resources: chaincodeResources,
 						},
 					},
 					RestartPolicy: apiv1.RestartPolicyNever,
@@ -434,6 +436,9 @@ func CreateChaincodeJob(
 	hostAliases []apiv1.HostAlias,
 	customAnnotations map[string]string,
 	chaincodeEnvVars []apiv1.EnvVar,
+	imagePullSecrets []apiv1.LocalObjectReference,
+	chaincodeResources apiv1.ResourceRequirements,
+	customLabels map[string]string,
 	peerID string,
 	chaincodeData *ChaincodeJSON,
 	imageData *ImageJSON,
@@ -446,6 +451,7 @@ func CreateChaincodeJob(
 		peerID,
 		chaincodeData,
 		chaincodeEnvVars,
+		chaincodeResources,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("error getting chaincode job definition for chaincode ID %s: %w", chaincodeData.ChaincodeID, err)
@@ -498,6 +504,20 @@ func CreateChaincodeJob(
 			jobDefinition.ObjectMeta.Annotations[k] = v
 			jobDefinition.Spec.Template.ObjectMeta.Annotations[k] = v
 		}
+	}
+
+	if len(customLabels) > 0 {
+		logger.Debugf("Adding custom labels to job definition for chaincode ID %s", chaincodeData.ChaincodeID)
+
+		for k, v := range customLabels {
+			jobDefinition.ObjectMeta.Labels[k] = v
+			jobDefinition.Spec.Template.ObjectMeta.Labels[k] = v
+		}
+	}
+
+	if len(imagePullSecrets) > 0 {
+		logger.Debugf("Adding image pull secrets to job definition for chaincode ID %s", chaincodeData.ChaincodeID)
+		jobDefinition.Spec.Template.Spec.ImagePullSecrets = imagePullSecrets
 	}
 
 	jobName := jobDefinition.Name

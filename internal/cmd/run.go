@@ -12,6 +12,7 @@ import (
 	"github.com/hyperledger-labs/fabric-builder-k8s/internal/log"
 	"github.com/hyperledger-labs/fabric-builder-k8s/internal/util"
 	apiv1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	apivalidation "k8s.io/apimachinery/pkg/api/validation"
 	"k8s.io/apimachinery/pkg/util/validation"
 )
@@ -143,6 +144,27 @@ func getKubeCustomAnnotations(logger *log.CmdLogger) (annotations map[string]str
 }
 
 //nolint:nonamedreturns // using the ok bool convention to indicate errors
+func getKubeCustomLabels(logger *log.CmdLogger) (labels map[string]string, ok bool) {
+	raw := util.GetOptionalEnv(util.ChaincodeLabelsVariable, "")
+	logger.Debugf("%s=%s", util.ChaincodeLabelsVariable, raw)
+
+	if raw == "" {
+		return nil, true
+	}
+
+	if err := json.Unmarshal([]byte(raw), &labels); err != nil {
+		logger.Printf(
+			`The %s environment variable must be a valid JSON object, e.g. {"key":"value"}: %v`,
+			util.ChaincodeLabelsVariable, err,
+		)
+
+		return nil, false
+	}
+
+	return labels, true
+}
+
+//nolint:nonamedreturns // using the ok bool convention to indicate errors
 func getChaincodeEnvVars(logger *log.CmdLogger) (envVars []apiv1.EnvVar, ok bool) {
 	raw := util.GetOptionalEnv(util.ChaincodeEnvVarsVariable, "")
 	logger.Debugf("%s=%s", util.ChaincodeEnvVarsVariable, raw)
@@ -166,6 +188,80 @@ func getChaincodeEnvVars(logger *log.CmdLogger) (envVars []apiv1.EnvVar, ok bool
 	}
 
 	return envVars, true
+}
+
+//nolint:nonamedreturns // using the ok bool convention to indicate errors
+func getKubeImagePullSecrets(logger *log.CmdLogger) (imagePullSecrets []apiv1.LocalObjectReference, ok bool) {
+	raw := util.GetOptionalEnv(util.ChaincodeImagePullSecretsVariable, "")
+	logger.Debugf("%s=%s", util.ChaincodeImagePullSecretsVariable, raw)
+
+	if raw == "" {
+		return nil, true
+	}
+
+	var secretNames []string
+	if err := json.Unmarshal([]byte(raw), &secretNames); err != nil {
+		logger.Printf(
+			`The %s environment variable must be a valid JSON array of secret names, e.g. ["mysecret","anothersecret"]: %v`,
+			util.ChaincodeImagePullSecretsVariable, err,
+		)
+
+		return nil, false
+	}
+
+	for _, name := range secretNames {
+		imagePullSecrets = append(imagePullSecrets, apiv1.LocalObjectReference{Name: name})
+	}
+
+	return imagePullSecrets, true
+}
+
+//nolint:nonamedreturns // using the ok bool convention to indicate errors
+func getChaincodeResources(logger *log.CmdLogger) (resources apiv1.ResourceRequirements, ok bool) {
+	cpuReq := util.GetOptionalEnv(util.ChaincodeCPURequestVariable, "100m")
+	memReq := util.GetOptionalEnv(util.ChaincodeMemoryRequestVariable, "128Mi")
+	cpuLim := util.GetOptionalEnv(util.ChaincodeCPULimitVariable, "500m")
+	memLim := util.GetOptionalEnv(util.ChaincodeMemoryLimitVariable, "2Gi")
+
+	logger.Debugf("%s=%s", util.ChaincodeCPURequestVariable, cpuReq)
+	logger.Debugf("%s=%s", util.ChaincodeMemoryRequestVariable, memReq)
+	logger.Debugf("%s=%s", util.ChaincodeCPULimitVariable, cpuLim)
+	logger.Debugf("%s=%s", util.ChaincodeMemoryLimitVariable, memLim)
+
+	cpuReqQ, err := resource.ParseQuantity(cpuReq)
+	if err != nil {
+		logger.Printf("The %s environment variable must be a valid Kubernetes quantity, e.g. 100m: %v", util.ChaincodeCPURequestVariable, err)
+		return apiv1.ResourceRequirements{}, false
+	}
+
+	memReqQ, err := resource.ParseQuantity(memReq)
+	if err != nil {
+		logger.Printf("The %s environment variable must be a valid Kubernetes quantity, e.g. 128Mi: %v", util.ChaincodeMemoryRequestVariable, err)
+		return apiv1.ResourceRequirements{}, false
+	}
+
+	cpuLimQ, err := resource.ParseQuantity(cpuLim)
+	if err != nil {
+		logger.Printf("The %s environment variable must be a valid Kubernetes quantity, e.g. 500m: %v", util.ChaincodeCPULimitVariable, err)
+		return apiv1.ResourceRequirements{}, false
+	}
+
+	memLimQ, err := resource.ParseQuantity(memLim)
+	if err != nil {
+		logger.Printf("The %s environment variable must be a valid Kubernetes quantity, e.g. 2Gi: %v", util.ChaincodeMemoryLimitVariable, err)
+		return apiv1.ResourceRequirements{}, false
+	}
+
+	return apiv1.ResourceRequirements{
+		Requests: apiv1.ResourceList{
+			apiv1.ResourceCPU:    cpuReqQ,
+			apiv1.ResourceMemory: memReqQ,
+		},
+		Limits: apiv1.ResourceList{
+			apiv1.ResourceCPU:    cpuLimQ,
+			apiv1.ResourceMemory: memLimQ,
+		},
+	}, true
 }
 
 //nolint:nonamedreturns // using the ok bool convention to indicate errors
@@ -244,7 +340,22 @@ func Run() {
 		os.Exit(1)
 	}
 
+	kubeCustomLabels, ok := getKubeCustomLabels(logger)
+	if !ok {
+		os.Exit(1)
+	}
+
 	chaincodeEnvVars, ok := getChaincodeEnvVars(logger)
+	if !ok {
+		os.Exit(1)
+	}
+
+	kubeImagePullSecrets, ok := getKubeImagePullSecrets(logger)
+	if !ok {
+		os.Exit(1)
+	}
+
+	chaincodeResources, ok := getChaincodeResources(logger)
 	if !ok {
 		os.Exit(1)
 	}
@@ -261,7 +372,10 @@ func Run() {
 		ChaincodeStartTimeout: chaincodeStartTimeout,
 		KubeHostAliases:       kubeHostAliases,
 		KubeCustomAnnotations: kubeCustomAnnotations,
+		KubeCustomLabels:      kubeCustomLabels,
 		ChaincodeEnvVars:      chaincodeEnvVars,
+		KubeImagePullSecrets:  kubeImagePullSecrets,
+		ChaincodeResources:    chaincodeResources,
 	}
 
 	if err := run.Run(ctx); err != nil {

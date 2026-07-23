@@ -25,6 +25,9 @@ type Run struct {
 	KubeHostAliases       []apiv1.HostAlias
 	KubeCustomAnnotations map[string]string
 	ChaincodeEnvVars      []apiv1.EnvVar
+	KubeImagePullSecrets  []apiv1.LocalObjectReference
+	ChaincodeResources    apiv1.ResourceRequirements
+	KubeCustomLabels      map[string]string
 }
 
 func (r *Run) Run(ctx context.Context) error {
@@ -84,6 +87,9 @@ func (r *Run) Run(ctx context.Context) error {
 		r.KubeHostAliases,
 		r.KubeCustomAnnotations,
 		r.ChaincodeEnvVars,
+		r.KubeImagePullSecrets,
+		r.ChaincodeResources,
+		r.KubeCustomLabels,
 		r.PeerID,
 		chaincodeData,
 		imageData,

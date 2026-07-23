@@ -18,6 +18,10 @@ externalBuilders:
       - FABRIC_K8S_BUILDER_OBJECT_NAME_PREFIX
       - FABRIC_K8S_BUILDER_SERVICE_ACCOUNT
       - FABRIC_K8S_BUILDER_START_TIMEOUT
+      - FABRIC_K8S_BUILDER_HOST_ALIASES
+      - FABRIC_K8S_BUILDER_ANNOTATIONS
+      - FABRIC_K8S_BUILDER_CHAINCODE_ENV_VARS
+      - FABRIC_K8S_BUILDER_IMAGE_PULL_SECRETS
       - KUBERNETES_SERVICE_HOST
       - KUBERNETES_SERVICE_PORT
 ```
@@ -49,6 +53,10 @@ The k8s builder is configured using the following environment variables.
 | FABRIC_K8S_BUILDER_OBJECT_NAME_PREFIX | `hlfcc`                          | Eye-catcher prefix for Kubernetes object names       |
 | FABRIC_K8S_BUILDER_SERVICE_ACCOUNT    | `default`                        | The Kubernetes service account to run chaincode with |
 | FABRIC_K8S_BUILDER_START_TIMEOUT      | `3m`                             | The timeout when waiting for chaincode pods to start |
+| FABRIC_K8S_BUILDER_HOST_ALIASES       |                                  | JSON array of host aliases injected into the chaincode pod `/etc/hosts`, e.g. `[{"ip":"10.0.0.1","hostnames":["peer0.org1.example.com"]}]` |
+| FABRIC_K8S_BUILDER_ANNOTATIONS        |                                  | JSON object of custom annotations added to the chaincode Job and Pod metadata, e.g. `{"prometheus.io/scrape":"true"}` |
+| FABRIC_K8S_BUILDER_CHAINCODE_ENV_VARS |                                  | JSON object of extra environment variables set on the chaincode container, e.g. `{"CHAINCODE_SERVER_ADDRESS":"0.0.0.0:9999"}` |
+| FABRIC_K8S_BUILDER_IMAGE_PULL_SECRETS |                                  | JSON array of image pull secret names attached to the chaincode pod, e.g. `["my-registry-secret"]` |
 | FABRIC_K8S_BUILDER_DEBUG              | `false`                          | Set to `true` to enable k8s builder debug messages   |
 
 The k8s builder can be run in cluster using the `KUBERNETES_SERVICE_HOST` and `KUBERNETES_SERVICE_PORT` environment variables, or it can connect using a `KUBECONFIG_PATH` environment variable.

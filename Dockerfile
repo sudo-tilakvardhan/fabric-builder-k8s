@@ -24,7 +24,6 @@ ADD . $GOPATH/src/github.com/hyperledger-labs/fabric-builder-k8s
 WORKDIR $GOPATH/src/github.com/hyperledger-labs/fabric-builder-k8s
 
 RUN go install -a -v ./cmd/...
-
 FROM hyperledger/fabric-peer:${HLF_VERSION}@${HLF_IMAGE_DIGEST} AS core
 
 ENV DEBIAN_FRONTEND="noninteractive"
